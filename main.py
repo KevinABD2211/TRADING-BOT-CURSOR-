@@ -248,6 +248,12 @@ class AdviceListResponse(BaseModel):
 # Routes
 # ---------------------------------------------------------------------------
 
+@app.get("/")
+async def root():
+    """Root route so opening the API URL in a browser doesn't 404."""
+    return {"message": "Trading Assistant API", "docs": "/docs", "health": "/health", "api_prefix": "/api"}
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     return HealthResponse(status="ok")
