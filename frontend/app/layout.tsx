@@ -38,6 +38,9 @@ export default function RootLayout({
               <a href="/trades" className="text-sm text-zinc-400 hover:text-white">
                 Trades (Alpaca)
               </a>
+              <a href="/advice" className="text-sm text-zinc-400 hover:text-white">
+                Advice
+              </a>
               <a href="/executions" className="text-sm text-zinc-400 hover:text-white">
                 Executions
               </a>

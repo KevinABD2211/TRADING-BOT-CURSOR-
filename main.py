@@ -38,6 +38,7 @@ from app.services.alpaca_service import (
     is_alpaca_configured,
 )
 from app.services.research_service import get_research_confidence
+from app.services.advice_service import get_advice_for_symbol, get_all_advice
 
 logging.basicConfig(
     level=logging.INFO,
@@ -224,6 +225,23 @@ class ResearchConfidenceResponse(BaseModel):
     confidence_pct: int
     rationale: str
     sources: list[str]
+
+
+class AdviceItemResponse(BaseModel):
+    """One recommendation per commodity: LONG or SHORT with target and stop loss always set."""
+    symbol: str
+    direction: str
+    entry_price: float
+    stop_loss: float
+    target_price: float
+    confidence_pct: int
+    rationale: str
+    sources_used: list[str]
+
+
+class AdviceListResponse(BaseModel):
+    advice: list[AdviceItemResponse]
+    total: int
 
 
 # ---------------------------------------------------------------------------
@@ -418,18 +436,32 @@ async def list_signals_unified(
     except Exception:
         signals = []
         total_db = 0
-    # Append market signals if we have room
+    # Append market signals if we have room; always set default TP/SL so every row has target and stop loss
     market = await get_market_signals(limit=max(0, limit - total_db))
+    try:
+        sl_pct = get_settings().advice.default_sl_pct / 100.0
+        tp_pct = get_settings().advice.default_tp_pct / 100.0
+    except Exception:
+        sl_pct, tp_pct = 0.02, 0.04
     for r in market:
+        entry = r.get("entry_price")
+        direction = (r.get("direction") or "long").lower()
+        if entry is not None and entry > 0:
+            if direction == "long":
+                sl, tp = entry * (1 - sl_pct), entry * (1 + tp_pct)
+            else:
+                sl, tp = entry * (1 + sl_pct), entry * (1 - tp_pct)
+        else:
+            sl, tp = None, None
         signals.append(
             SignalItem(
                 id=f"market-{r['symbol']}",
                 symbol=r["symbol"],
                 asset_type="crypto",
                 direction=r["direction"],
-                entry_price=r.get("entry_price"),
-                stop_loss=None,
-                take_profit_1=None,
+                entry_price=entry,
+                stop_loss=sl,
+                take_profit_1=tp,
                 take_profit_2=None,
                 take_profit_3=None,
                 leverage=None,
@@ -753,3 +785,53 @@ async def research_confidence(
         rationale=out["rationale"],
         sources=out["sources"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Advice: one recommendation per commodity (LONG/SHORT + target + stop loss)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/advice", response_model=AdviceListResponse)
+async def list_advice(db: AsyncSession = Depends(get_db)):
+    """One advice per tracked commodity. Aggregates DB, Binance, CoinGecko, Finnhub; always returns target_price and stop_loss."""
+    try:
+        items = await get_all_advice(db)
+        return AdviceListResponse(
+            advice=[
+                AdviceItemResponse(
+                    symbol=a.symbol,
+                    direction=a.direction,
+                    entry_price=a.entry_price,
+                    stop_loss=a.stop_loss,
+                    target_price=a.target_price,
+                    confidence_pct=a.confidence_pct,
+                    rationale=a.rationale,
+                    sources_used=a.sources_used,
+                )
+                for a in items
+            ],
+            total=len(items),
+        )
+    except Exception as e:
+        logger.warning("List advice failed: %s", e)
+        return AdviceListResponse(advice=[], total=0)
+
+
+@app.get("/api/advice/{symbol}", response_model=AdviceItemResponse)
+async def get_advice(symbol: str, db: AsyncSession = Depends(get_db)):
+    """Single advice for one symbol: LONG or SHORT with target_price and stop_loss always set."""
+    try:
+        a = await get_advice_for_symbol(symbol.strip().upper(), db)
+        return AdviceItemResponse(
+            symbol=a.symbol,
+            direction=a.direction,
+            entry_price=a.entry_price,
+            stop_loss=a.stop_loss,
+            target_price=a.target_price,
+            confidence_pct=a.confidence_pct,
+            rationale=a.rationale,
+            sources_used=a.sources_used,
+        )
+    except Exception as e:
+        logger.warning("Advice for %s failed: %s", symbol, e)
+        raise HTTPException(status_code=404, detail=f"Advice for symbol {symbol} failed.")

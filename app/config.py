@@ -193,6 +193,15 @@ class ResearchSettings(BaseSettings):
     use_llm_for_confidence: bool = Field(default=True, description="Use LLM to derive confidence from news")
 
 
+class AdviceSettings(BaseSettings):
+    """One advice per commodity: tracked symbols and default TP/SL %."""
+    model_config = SettingsConfigDict(env_prefix="ADVICE_", extra="ignore")
+    # Comma-separated symbols to always produce one advice for (e.g. AAPL,MSFT,BTC,ETH)
+    tracked_symbols: str = Field(default="AAPL,MSFT,GOOGL,TSLA,NVDA,META,AMZN,BTC,ETH", description="Symbols to get one advice each")
+    default_sl_pct: float = Field(default=2.0, ge=0.5, le=20, description="Default stop loss % from entry")
+    default_tp_pct: float = Field(default=4.0, ge=0.5, le=50, description="Default target profit % from entry")
+
+
 class AppSettings(BaseSettings):
     """
     Root application settings.
@@ -236,6 +245,7 @@ class AppSettings(BaseSettings):
     risk: RiskSettings = Field(default_factory=RiskSettings)
     notifications: NotificationSettings = Field(default_factory=NotificationSettings)
     research: ResearchSettings = Field(default_factory=ResearchSettings)
+    advice: AdviceSettings = Field(default_factory=AdviceSettings)
 
     @model_validator(mode="after")
     def validate_live_mode_requirements(self) -> "AppSettings":

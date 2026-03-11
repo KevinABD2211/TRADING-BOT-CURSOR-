@@ -107,6 +107,27 @@ export async function seedDemoSignals(): Promise<{ seeded: number; message: stri
 
 export type ResearchConfidence = { confidence_pct: number; rationale: string; sources: string[] };
 
+export type AdviceItem = {
+  symbol: string;
+  direction: string;
+  entry_price: number;
+  stop_loss: number;
+  target_price: number;
+  confidence_pct: number;
+  rationale: string;
+  sources_used: string[];
+};
+
+export type AdviceListResponse = { advice: AdviceItem[]; total: number };
+
+export async function getAdvice(): Promise<AdviceListResponse> {
+  return fetchApi<AdviceListResponse>("/api/advice");
+}
+
+export async function getAdviceForSymbol(symbol: string): Promise<AdviceItem> {
+  return fetchApi<AdviceItem>(`/api/advice/${encodeURIComponent(symbol)}`);
+}
+
 export async function getResearchConfidence(params: {
   symbol: string;
   direction?: string;
