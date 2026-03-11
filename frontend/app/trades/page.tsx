@@ -6,9 +6,11 @@ import {
   getAlpacaAccount,
   getAlpacaSuggestions,
   alpacaExecute,
+  getResearchConfidence,
   type AlpacaSuggestion,
   type AlpacaSuggestionsResponse,
   type AlpacaAccount,
+  type ResearchConfidence,
 } from "@/lib/api";
 
 export default function TradesPage() {
@@ -117,7 +119,7 @@ export default function TradesPage() {
       {!loading && !error && (
         <>
           <p className="mt-4 text-sm text-zinc-500">
-            {data?.total ?? 0} stock signal(s) · Only actionable stock signals are shown.
+            {data?.total ?? 0} stock signal(s) · Use &quot;Research&quot; to get confidence from trusted finance sources (Finnhub).
           </p>
           <div className="mt-4 overflow-x-auto rounded-lg border border-zinc-700">
             <table className="w-full min-w-[800px] text-left text-sm">
@@ -128,6 +130,7 @@ export default function TradesPage() {
                   <th className="px-4 py-3 font-medium text-zinc-300">Entry / Current</th>
                   <th className="px-4 py-3 font-medium text-zinc-300">Suggested $</th>
                   <th className="px-4 py-3 font-medium text-zinc-300">Conf.</th>
+                  <th className="px-4 py-3 font-medium text-zinc-300">Research</th>
                   <th className="px-4 py-3 font-medium text-zinc-300">Source</th>
                   <th className="px-4 py-3 font-medium text-zinc-300">Actions</th>
                 </tr>
@@ -135,7 +138,7 @@ export default function TradesPage() {
               <tbody className="divide-y divide-zinc-700">
                 {suggestions.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-zinc-500">
+                    <td colSpan={8} className="px-4 py-8 text-center text-zinc-500">
                       No stock signals. Add signals with asset_type=stock (e.g. from Discord or manual).
                     </td>
                   </tr>
@@ -181,10 +184,24 @@ function SuggestionRow({
   executing: boolean;
   canExecute: boolean;
 }) {
+  const [research, setResearch] = useState<ResearchConfidence | null>(null);
+  const [loadingResearch, setLoadingResearch] = useState(false);
   const price = s.current_price ?? s.entry_price;
   const priceStr = price != null ? `$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}` : "—";
+
+  async function fetchResearch() {
+    setLoadingResearch(true);
+    try {
+      const res = await getResearchConfidence({ symbol: s.symbol, direction: s.direction });
+      setResearch(res);
+    } finally {
+      setLoadingResearch(false);
+    }
+  }
+
   return (
-    <tr className="bg-zinc-900/30 hover:bg-zinc-800/50">
+    <>
+      <tr className="bg-zinc-900/30 hover:bg-zinc-800/50">
       <td className="px-4 py-3 font-medium text-white">{s.symbol}</td>
       <td className="px-4 py-3">
         <span className={s.direction === "long" ? "text-emerald-400" : "text-red-400"}>
@@ -203,6 +220,21 @@ function SuggestionRow({
         )}
       </td>
       <td className="px-4 py-3 text-zinc-400">{s.confidence_pct != null ? `${s.confidence_pct}%` : "—"}</td>
+      <td className="px-4 py-3">
+        <button
+          type="button"
+          onClick={fetchResearch}
+          disabled={loadingResearch}
+          className="rounded border border-blue-600/50 bg-blue-950/30 px-2 py-1 text-xs text-blue-300 hover:bg-blue-900/50 disabled:opacity-50"
+        >
+          {loadingResearch ? "…" : research ? `${research.confidence_pct}%` : "Research"}
+        </button>
+        {research && (
+          <p className="mt-1 max-w-xs text-xs text-zinc-500" title={research.rationale}>
+            {research.rationale.length > 60 ? `${research.rationale.slice(0, 60)}…` : research.rationale}
+          </p>
+        )}
+      </td>
       <td className="px-4 py-3 text-zinc-400">{s.source}</td>
       <td className="px-4 py-3">
         {canExecute ? (
@@ -231,5 +263,16 @@ function SuggestionRow({
         )}
       </td>
     </tr>
+    {research && (
+      <tr className="bg-zinc-800/30">
+        <td colSpan={8} className="px-4 py-2 text-xs text-zinc-400">
+          <strong className="text-zinc-300">Research confidence: {research.confidence_pct}%</strong>
+          {research.sources.length > 0 && ` (${research.sources.join(", ")})`}
+          <br />
+          {research.rationale}
+        </td>
+      </tr>
+    )}
+    </>
   );
 }

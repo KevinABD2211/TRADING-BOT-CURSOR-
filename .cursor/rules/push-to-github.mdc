@@ -1,0 +1,13 @@
+# Push to GitHub
+
+When you complete a task that changes code or config in this project:
+
+1. Stage all changes: `git add -A`
+2. Commit with a short, descriptive message: `git commit -m "Your message"`
+3. Push to GitHub: `git push origin main`
+
+Use the project's push script from repo root:
+- **PowerShell:** `.\scripts\push.ps1 "Your commit message"`
+- **Bash:** `./scripts/push.sh "Your commit message"`
+
+Always push after finishing a user-requested change so the repo stays up to date.

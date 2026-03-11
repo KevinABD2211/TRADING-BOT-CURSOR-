@@ -96,6 +96,29 @@ export async function getSignals(params: {
   return fetchApi<SignalsResponse>(`/api/signals${q ? `?${q}` : ""}`);
 }
 
+export async function getSignalsUnified(params?: { limit?: number }): Promise<SignalsResponse> {
+  const limit = params?.limit ?? 50;
+  return fetchApi<SignalsResponse>(`/api/signals/unified?limit=${limit}`);
+}
+
+export async function seedDemoSignals(): Promise<{ seeded: number; message: string }> {
+  return fetchApi<{ seeded: number; message: string }>("/api/seed-demo", { method: "POST" });
+}
+
+export type ResearchConfidence = { confidence_pct: number; rationale: string; sources: string[] };
+
+export async function getResearchConfidence(params: {
+  symbol: string;
+  direction?: string;
+  signal_summary?: string;
+}): Promise<ResearchConfidence> {
+  const sp = new URLSearchParams();
+  sp.set("symbol", params.symbol);
+  if (params.direction) sp.set("direction", params.direction);
+  if (params.signal_summary) sp.set("signal_summary", params.signal_summary);
+  return fetchApi<ResearchConfidence>(`/api/research/confidence?${sp.toString()}`);
+}
+
 export type SourceCount = { source: string; count: number };
 export type SourcesResponse = { sources: SourceCount[] };
 

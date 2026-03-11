@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { getSignals, type SignalItem, type SignalsResponse } from "@/lib/api";
+import { getSignals, getSignalsUnified, seedDemoSignals, type SignalItem, type SignalsResponse } from "@/lib/api";
 
 const PAGE_SIZE = 20;
 
@@ -17,6 +17,31 @@ export default function SignalsPage() {
   const [direction, setDirection] = useState("");
   const [source, setSource] = useState("");
   const [minConfidence, setMinConfidence] = useState("");
+  const [useUnified, setUseUnified] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    setError(null);
+    if (useUnified && !symbol && !direction && !source && !minConfidence) {
+      getSignalsUnified({ limit: 50 })
+        .then(setData)
+        .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
+        .finally(() => setLoading(false));
+    } else {
+      getSignals({
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+        symbol: symbol || undefined,
+        direction: direction || undefined,
+        source: source || undefined,
+        min_confidence: minConfidence !== "" ? parseInt(minConfidence, 10) : undefined,
+      })
+        .then(setData)
+        .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
+        .finally(() => setLoading(false));
+    }
+  }, [useUnified, page, symbol, direction, source, minConfidence]);
 
   useEffect(() => {
     const fromUrl = searchParams.get("source");
@@ -24,31 +49,22 @@ export default function SignalsPage() {
   }, [searchParams]);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getSignals({
-      limit: PAGE_SIZE,
-      offset: page * PAGE_SIZE,
-      symbol: symbol || undefined,
-      direction: direction || undefined,
-      source: source || undefined,
-      min_confidence: minConfidence !== "" ? parseInt(minConfidence, 10) : undefined,
-    })
-      .then((res) => {
-        if (!cancelled) setData(res);
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load signals");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [page, symbol, direction, source, minConfidence]);
+    load();
+  }, [load]);
 
-  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
+  async function handleSeedDemo() {
+    setSeeding(true);
+    try {
+      await seedDemoSignals();
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Seed failed");
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  const totalPages = data && !useUnified ? Math.ceil(data.total / PAGE_SIZE) : 1;
   const signals = data?.signals ?? [];
 
   return (
@@ -56,7 +72,9 @@ export default function SignalsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Signals</h1>
-          <p className="mt-1 text-zinc-400">Parsed trading signals from Discord.</p>
+          <p className="mt-1 text-zinc-400">
+            {useUnified ? "DB + Market (Binance) — always shows data." : "Parsed signals from DB (Discord/manual)."}
+          </p>
         </div>
         <Link
           href="/"
@@ -64,6 +82,26 @@ export default function SignalsPage() {
         >
           ← Dashboard
         </Link>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2 text-sm text-zinc-400">
+          <input
+            type="checkbox"
+            checked={useUnified}
+            onChange={(e) => { setUseUnified(e.target.checked); setPage(0); }}
+            className="rounded border-zinc-600"
+          />
+          Unified (DB + Market)
+        </label>
+        <button
+          type="button"
+          onClick={handleSeedDemo}
+          disabled={seeding || loading}
+          className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+        >
+          {seeding ? "Loading…" : "Load demo signals"}
+        </button>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-4">

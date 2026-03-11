@@ -26,6 +26,7 @@ from app.models import (
     Execution,
     ExecutionStatusEnum,
     ParsedSignal,
+    ParseMethodEnum,
     RawDiscordMessage,
     SignalSourceEnum,
 )
@@ -36,6 +37,7 @@ from app.services.alpaca_service import (
     place_order as alpaca_place_order,
     is_alpaca_configured,
 )
+from app.services.research_service import get_research_confidence
 
 logging.basicConfig(
     level=logging.INFO,
@@ -218,6 +220,12 @@ class AlpacaExecuteRequest(BaseModel):
     signal_id: Optional[str] = None
 
 
+class ResearchConfidenceResponse(BaseModel):
+    confidence_pct: int
+    rationale: str
+    sources: list[str]
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -331,6 +339,115 @@ async def list_signals(
     except Exception as e:
         logger.warning("List signals failed (database may be unavailable): %s", e)
         return SignalsListResponse(signals=[], total=0)
+
+
+@app.post("/api/seed-demo")
+async def seed_demo_signals(db: AsyncSession = Depends(get_db)):
+    """Insert demo signals so you can see data on the Signals page without Discord."""
+    now = datetime.now(timezone.utc)
+    demos = [
+        ("AAPL", AssetTypeEnum.stock, DirectionEnum.long, 178.50, 175.0, 185.0, "AAPL long from support. SL 175, TP 185."),
+        ("MSFT", AssetTypeEnum.stock, DirectionEnum.long, 415.20, 408.0, 425.0, "MSFT breakout. Entry 415, SL 408, TP 425."),
+        ("TSLA", AssetTypeEnum.stock, DirectionEnum.short, 242.0, 248.0, 230.0, "TSLA short at resistance 242. SL 248, TP 230."),
+        ("GOOGL", AssetTypeEnum.stock, DirectionEnum.long, 172.0, 168.0, 180.0, "GOOGL long. Entry 172, SL 168, TP 180."),
+        ("NVDA", AssetTypeEnum.stock, DirectionEnum.long, 138.0, 132.0, 148.0, "NVDA long from key level. SL 132, TP 148."),
+        ("BTC", AssetTypeEnum.crypto, DirectionEnum.long, 97200.0, 95000.0, 100000.0, "BTC long. Entry 97200, SL 95k, TP 100k."),
+        ("ETH", AssetTypeEnum.crypto, DirectionEnum.long, 3480.0, 3380.0, 3650.0, "ETH long. Entry 3480, SL 3380, TP 3650."),
+        ("META", AssetTypeEnum.stock, DirectionEnum.long, 585.0, 575.0, 605.0, "META long. Entry 585, SL 575, TP 605."),
+    ]
+    count = 0
+    for symbol, asset_type, direction, entry, sl, tp, raw_text in demos:
+        sig = ParsedSignal(
+            source=SignalSourceEnum.manual,
+            parse_method=ParseMethodEnum.manual,
+            symbol=symbol,
+            asset_type=asset_type,
+            direction=direction,
+            entry_price=entry,
+            stop_loss=sl,
+            take_profit_1=tp,
+            signal_timestamp=now,
+            raw_text=raw_text,
+            is_actionable=True,
+            signal_completeness_pct=75,
+        )
+        db.add(sig)
+        count += 1
+    await db.flush()
+    return {"seeded": count, "message": "Demo signals added. Refresh the Signals page."}
+
+
+@app.get("/api/signals/unified", response_model=SignalsListResponse)
+async def list_signals_unified(
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Combined view: DB signals first, then market (Binance) signals so you always see something."""
+    from app.services.market_signal_service import get_market_signals
+    try:
+        q = select(ParsedSignal).order_by(desc(ParsedSignal.parsed_at)).limit(limit)
+        result = await db.execute(q)
+        rows = result.scalars().all()
+        def to_item(s: ParsedSignal) -> SignalItem:
+            return SignalItem(
+                id=str(s.id),
+                symbol=s.symbol,
+                asset_type=s.asset_type.value if hasattr(s.asset_type, "value") else str(s.asset_type),
+                direction=s.direction.value if hasattr(s.direction, "value") else str(s.direction),
+                entry_price=float(s.entry_price) if s.entry_price is not None else None,
+                stop_loss=float(s.stop_loss) if s.stop_loss is not None else None,
+                take_profit_1=float(s.take_profit_1) if s.take_profit_1 is not None else None,
+                take_profit_2=float(s.take_profit_2) if s.take_profit_2 is not None else None,
+                take_profit_3=float(s.take_profit_3) if s.take_profit_3 is not None else None,
+                leverage=s.leverage,
+                timeframe=s.timeframe,
+                signal_timestamp=s.signal_timestamp,
+                parsed_at=s.parsed_at,
+                parse_method=s.parse_method.value if hasattr(s.parse_method, "value") else str(s.parse_method),
+                source=s.source.value if hasattr(s.source, "value") else str(s.source),
+                signal_completeness_pct=s.signal_completeness_pct,
+                llm_confidence=float(s.llm_confidence) if s.llm_confidence is not None else None,
+                confidence_wording=s.confidence_wording,
+                risk_reward_ratio=float(s.risk_reward_ratio) if s.risk_reward_ratio is not None else None,
+                raw_text_preview=(s.raw_text or "")[:200],
+                discord_author_name=s.discord_author_name,
+                discord_message_link=s.discord_message_link,
+            )
+        signals = [to_item(s) for s in rows]
+        total_db = len(signals)
+    except Exception:
+        signals = []
+        total_db = 0
+    # Append market signals if we have room
+    market = await get_market_signals(limit=max(0, limit - total_db))
+    for r in market:
+        signals.append(
+            SignalItem(
+                id=f"market-{r['symbol']}",
+                symbol=r["symbol"],
+                asset_type="crypto",
+                direction=r["direction"],
+                entry_price=r.get("entry_price"),
+                stop_loss=None,
+                take_profit_1=None,
+                take_profit_2=None,
+                take_profit_3=None,
+                leverage=None,
+                timeframe=None,
+                signal_timestamp=datetime.fromisoformat(r["signal_timestamp"].replace("Z", "+00:00")) if r.get("signal_timestamp") else None,
+                parsed_at=None,
+                parse_method=r.get("parse_method", "market_api"),
+                source=r.get("source", "binance"),
+                signal_completeness_pct=r.get("confidence_pct"),
+                llm_confidence=None,
+                confidence_wording=None,
+                risk_reward_ratio=None,
+                raw_text_preview=r.get("raw_text_preview", ""),
+                discord_author_name=None,
+                discord_message_link=None,
+            )
+        )
+    return SignalsListResponse(signals=signals, total=len(signals))
 
 
 @app.get("/api/signals/market", response_model=MarketSignalsResponse)
@@ -617,3 +734,22 @@ async def alpaca_execute(
     await db.flush()
     await db.refresh(exec_row)
     return _exec_to_item(exec_row)
+
+
+# ---------------------------------------------------------------------------
+# Research: trusted sources + confidence
+# ---------------------------------------------------------------------------
+
+@app.get("/api/research/confidence", response_model=ResearchConfidenceResponse)
+async def research_confidence(
+    symbol: str = Query(..., min_length=1),
+    direction: str = Query("long"),
+    signal_summary: Optional[str] = Query(None),
+):
+    """Research a symbol from trusted finance sources (e.g. Finnhub) and return a confidence level (0-100) for the trade."""
+    out = await get_research_confidence(symbol.strip().upper(), direction.strip(), signal_summary)
+    return ResearchConfidenceResponse(
+        confidence_pct=out["confidence_pct"],
+        rationale=out["rationale"],
+        sources=out["sources"],
+    )

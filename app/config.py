@@ -186,6 +186,13 @@ class NotificationSettings(BaseSettings):
     slack_channel_id: Optional[str] = Field(default=None)
 
 
+class ResearchSettings(BaseSettings):
+    """Trusted finance sources for research and confidence scoring."""
+    model_config = SettingsConfigDict(env_prefix="RESEARCH_", extra="ignore")
+    finnhub_api_key: str = Field(default="", description="Finnhub.io API key (free tier)")
+    use_llm_for_confidence: bool = Field(default=True, description="Use LLM to derive confidence from news")
+
+
 class AppSettings(BaseSettings):
     """
     Root application settings.
@@ -228,6 +235,7 @@ class AppSettings(BaseSettings):
     scoring: ScoringSettings = Field(default_factory=ScoringSettings)
     risk: RiskSettings = Field(default_factory=RiskSettings)
     notifications: NotificationSettings = Field(default_factory=NotificationSettings)
+    research: ResearchSettings = Field(default_factory=ResearchSettings)
 
     @model_validator(mode="after")
     def validate_live_mode_requirements(self) -> "AppSettings":

@@ -39,7 +39,21 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Dashboard shows stats; **Signals** = from DB (Discord/parsed); **Market (Live)** = Binance 24h movers, works without Discord or DB.
+Open [http://localhost:3000](http://localhost:3000). **Signals** page: use **Unified (DB + Market)** to always see data; click **Load demo signals** to add sample stock/crypto signals. **Trades (Alpaca)** page: use **Research** to get a confidence level from trusted sources (Finnhub + optional LLM).
+
+## Research & confidence
+
+Set `RESEARCH_FINNHUB_API_KEY` (free at [finnhub.io](https://finnhub.io)) so the bot can pull company news and assign a **confidence level** to trades. On the Trades page, click **Research** next to a suggestion to run research and see confidence (0–100) and rationale.
+
+## Push to GitHub
+
+After making changes, push to keep the repo up to date:
+
+```powershell
+.\scripts\push.ps1 "Your commit message"
+```
+
+Or: `git add -A` → `git commit -m "..."` → `git push origin main`. See `.cursor/rules/push-to-github.mdc`.
 
 ## Deploy frontend to Vercel
 
@@ -57,6 +71,8 @@ pytest
 
 - `app/` — main package: config, database, models, services (signal_detector, signal_parser, discord_ingestor), utils
 - `app/services/market_signal_service.py` — Binance 24h ticker → live market signals (no API key)
+- `app/services/research_service.py` — Finnhub news + optional LLM → research confidence for trades
+- `app/services/alpaca_service.py` — Alpaca account, quotes, order execution
 - `frontend/` — Next.js app (App Router): dashboard, signals list, **Market (Live)** page, API client
 - `main.py` — FastAPI app (health, stats, signals)
 - `files/` — original source files (reference)
