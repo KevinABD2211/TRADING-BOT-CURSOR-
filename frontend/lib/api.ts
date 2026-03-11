@@ -1,4 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+const API_URL =
+  typeof window !== 'undefined' && process.env.NEXT_PUBLIC_API_URL
+    ? '' // browser: use same origin so Next.js rewrites /api/* to backend
+    : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001');
 
 export type Health = { status: string; api: string };
 

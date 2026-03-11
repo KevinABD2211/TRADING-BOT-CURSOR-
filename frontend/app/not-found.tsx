@@ -16,7 +16,7 @@ export default function NotFound() {
         <Link href="/sources" className="text-blue-400 hover:underline">Sources</Link>
       </nav>
       <p className="mt-6 text-xs text-zinc-500">
-        If you expected an API response, call the backend URL (e.g. {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001"}/api/advice) not the frontend URL.
+        Set NEXT_PUBLIC_API_URL to your backend URL when deploying so /api/* is proxied and data loads.
       </p>
     </div>
   );
