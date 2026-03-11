@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 class DiscordSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="DISCORD_", extra="ignore")
 
-    bot_token: str = Field(..., description="Discord bot token")
-    guild_id: int = Field(..., description="Target Discord server (guild) ID")
-    channel_id: int = Field(..., description="Target Discord channel ID to monitor")
+    bot_token: str = Field(default="", description="Discord bot token")
+    guild_id: int = Field(default=0, description="Target Discord server (guild) ID")
+    channel_id: int = Field(default=0, description="Target Discord channel ID to monitor")
     # If True, messages from other bots will also be processed
     include_bot_messages: bool = Field(default=False)
     # How many historical messages to backfill on startup (0 = disabled)
@@ -36,8 +36,8 @@ class DiscordSettings(BaseSettings):
 class BinanceSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="BINANCE_", extra="ignore")
 
-    api_key: str = Field(..., description="Binance API key")
-    api_secret: str = Field(..., description="Binance API secret")
+    api_key: str = Field(default="", description="Binance API key")
+    api_secret: str = Field(default="", description="Binance API secret")
     # 'live' uses fapi.binance.com; 'testnet' uses testnet.binancefuture.com
     environment: Literal["live", "testnet"] = Field(default="testnet")
     max_notional_per_trade_usd: float = Field(default=100.0)
@@ -50,8 +50,8 @@ class BinanceSettings(BaseSettings):
 class AlpacaSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="ALPACA_", extra="ignore")
 
-    api_key: str = Field(..., description="Alpaca API key")
-    api_secret: str = Field(..., description="Alpaca API secret")
+    api_key: str = Field(default="", description="Alpaca API key")
+    api_secret: str = Field(default="", description="Alpaca API secret")
     environment: Literal["paper", "live"] = Field(default="paper")
     paper_base_url: str = Field(default="https://paper-api.alpaca.markets")
     live_base_url: str = Field(default="https://api.alpaca.markets")
@@ -70,7 +70,7 @@ class DatabaseSettings(BaseSettings):
     port: int = Field(default=5432)
     name: str = Field(default="trading_assistant")
     user: str = Field(default="postgres")
-    password: str = Field(...)
+    password: str = Field(default="", description="DB password (required for DB access)")
     pool_size: int = Field(default=10)
     max_overflow: int = Field(default=20)
     pool_timeout: int = Field(default=30)
@@ -206,7 +206,8 @@ class AppSettings(BaseSettings):
     )
     debug: bool = Field(default=False)
     secret_key: str = Field(
-        ..., description="Random secret key for JWT / session signing"
+        default="dev-secret-change-me",
+        description="Random secret key for JWT / session signing",
     )
     api_version: str = Field(default="v1")
     log_level: str = Field(default="INFO")

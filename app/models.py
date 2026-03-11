@@ -54,6 +54,19 @@ class ParseMethodEnum(str, enum.Enum):
     manual = "manual"
 
 
+class ExecutionStatusEnum(str, enum.Enum):
+    pending = "pending"
+    filled = "filled"
+    cancelled = "cancelled"
+    failed = "failed"
+
+
+class BrokerEnum(str, enum.Enum):
+    paper = "paper"
+    binance = "binance"
+    alpaca = "alpaca"
+
+
 class RawDiscordMessage(Base):
     """Stores every Discord message verbatim before parsing."""
 
@@ -162,4 +175,40 @@ class ParsedSignal(Base):
     raw_message: Mapped[Optional["RawDiscordMessage"]] = relationship(
         "RawDiscordMessage", back_populates="parsed_signals", lazy="select"
     )
+
+
+class Execution(Base):
+    """Record of a trade execution (paper or live)."""
+
+    __tablename__ = "executions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    signal_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("parsed_signals.id", ondelete="SET NULL"),
+        index=True,
+    )
+
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    direction: Mapped[DirectionEnum] = mapped_column(
+        Enum(DirectionEnum, name="exec_direction"), nullable=False
+    )
+    side: Mapped[str] = mapped_column(String(8), nullable=False)  # buy | sell
+    quantity: Mapped[Optional[float]] = mapped_column(Numeric(24, 8))
+    price: Mapped[Optional[float]] = mapped_column(Numeric(24, 8))
+    notional_usd: Mapped[Optional[float]] = mapped_column(Numeric(18, 2))
+    status: Mapped[ExecutionStatusEnum] = mapped_column(
+        Enum(ExecutionStatusEnum, name="execution_status"), nullable=False
+    )
+    broker: Mapped[BrokerEnum] = mapped_column(
+        Enum(BrokerEnum, name="broker"), nullable=False
+    )
+    external_order_id: Mapped[Optional[str]] = mapped_column(String(128), index=True)
+    executed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    notes: Mapped[Optional[str]] = mapped_column(Text)
 

@@ -74,12 +74,15 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Verify database connectivity on startup."""
+    """Verify database connectivity and create tables if missing."""
     try:
-        async with engine.connect() as conn:
+        async with engine.begin() as conn:
             from sqlalchemy import text
 
             await conn.execute(text("SELECT 1"))
+            from app.database import Base
+            import app.models  # noqa: F401 — register models with Base
+            await conn.run_sync(Base.metadata.create_all)
         logger.info("Database connection verified successfully")
     except Exception as exc:
         logger.critical("Failed to connect to database: %s", exc)
