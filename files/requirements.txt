@@ -1,0 +1,55 @@
+# Trading Assistant Backend — Python Dependencies
+# Pin minor versions for reproducibility; update deliberately.
+
+# ── Web framework ─────────────────────────────────────────────
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-multipart==0.0.9
+
+# ── Database ──────────────────────────────────────────────────
+sqlalchemy==2.0.35
+asyncpg==0.29.0
+psycopg2-binary==2.9.9        # Alembic sync driver
+alembic==1.13.3
+
+# ── Settings / config ─────────────────────────────────────────
+pydantic==2.9.2
+pydantic-settings==2.5.2
+python-dotenv==1.0.1
+
+# ── Discord ───────────────────────────────────────────────────
+discord.py==2.4.0
+
+# ── Task queue ────────────────────────────────────────────────
+celery[redis]==5.4.0
+redis==5.1.1
+
+# ── HTTP client ───────────────────────────────────────────────
+httpx==0.27.2
+aiohttp==3.10.10
+
+# ── LLM providers (optional — install as needed) ─────────────
+openai==1.51.2
+anthropic==0.36.0
+
+# ── Broker SDKs ───────────────────────────────────────────────
+python-binance==1.0.19
+alpaca-trade-api==3.3.0
+
+# ── Notifications ─────────────────────────────────────────────
+python-telegram-bot==21.6
+sendgrid==6.11.0
+slack-sdk==3.33.0
+
+# ── Utilities ─────────────────────────────────────────────────
+structlog==24.4.0
+tenacity==9.0.0
+python-dateutil==2.9.0
+pytz==2024.2
+
+# ── Testing ───────────────────────────────────────────────────
+pytest==8.3.3
+pytest-asyncio==0.24.0
+pytest-mock==3.14.0
+httpx==0.27.2            # async test client for FastAPI
+factory-boy==3.3.1
