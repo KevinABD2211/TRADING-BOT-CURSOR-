@@ -57,9 +57,14 @@ Or: `git add -A` → `git commit -m "..."` → `git push origin main`. See `.cur
 
 ## Deploy frontend to Vercel
 
-1. Import the repo in Vercel; set **Root Directory** to `frontend`.
+1. Import the repo in Vercel; **set Root Directory to `frontend`** (required — the Next.js app lives there).
 2. Add env var: `NEXT_PUBLIC_API_URL` = your backend API URL (e.g. where the FastAPI app is hosted).
 3. Deploy. The dashboard will call your API from the browser.
+
+**Getting 404 NOT_FOUND (cdg1::...)?**
+- In Vercel → Project Settings → General → **Root Directory**: set to `frontend` and save, then redeploy.
+- Open the **production URL** (e.g. `https://your-project.vercel.app`) and use paths: `/`, `/signals`, `/advice`, `/trades`, `/executions`, `/sources`.
+- Do not open the backend URL for frontend paths (e.g. `https://api.xxx.com/signals` will 404 — use the Vercel URL).
 
 ## Run tests
 
